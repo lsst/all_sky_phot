@@ -1,0 +1,4 @@
+setupRequired(astropy)
+setupRequired(python)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
