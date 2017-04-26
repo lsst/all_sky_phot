@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from astroquery.simbad import Simbad
 import matplotlib.pylab as plt
@@ -123,5 +124,6 @@ fitx, fity = fun.compute(fit_result.x)
 
 xresid = (fitx-obs_stars['x']).std()
 yresid = (fity-obs_stars['y']).std()
+print('Fitted parameters', fit_result.x)
 
 
