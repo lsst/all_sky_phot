@@ -7,7 +7,7 @@ from astropy.modeling import models, fitting
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, ICRS, Longitude, Latitude
-from astropy.modeling.projections import Pix2Sky_ZEA, Sky2Pix_ZEA, AffineTransformation2D
+from astropy.modeling.projections import Pix2Sky_ZEA, Sky2Pix_ZEA, AffineTransformation2D, Sky2Pix_AZP
 from scipy.optimize import minimize
 
 lsst_location = EarthLocation(lat=-30.2444*u.degree, lon=-70.7494*u.degree, height=2650.0*u.meter)
@@ -88,7 +88,31 @@ obs_stars['az'] = predicted_array['az']
 # Now we have x,y values matched up to the expected alt,az values
 
 
-class sky2pix(object):
+class AZP_affine(object):
+    def __init__(self, x, y, alt, az):
+        self.projection = Sky2Pix_AZP()
+        self.affine = AffineTransformation2D()
+        self.x = x
+        self.y = y
+        self.alt = alt
+        self.az = az
+
+    def compute(self, x0):
+        self.affine.translation.value = x0[0:2]
+        self.affine.matrix.value = x0[2:6]
+        self.projection.mu = x0[6]
+        self.projection.gamma = x0[7]
+        newx, newy = self.projection(self.az, self.alt)
+        newx, newy = self.affine(newx, newy)
+        return newx, newy
+
+    def __call__(self, x0):
+        newx, newy = self.compute(x0)
+        residual = np.sum((newx - self.x)**2 + (newy-self.y)**2)
+        return residual
+
+
+class ZEA_affine(object):
     def __init__(self, x, y, alt, az):
         self.projection = Sky2Pix_ZEA()
         self.affine = AffineTransformation2D()
@@ -112,11 +136,42 @@ class sky2pix(object):
         residual = np.sum((newx - self.x)**2 + (newy-self.y)**2)
         return residual
 
-# Temp crop down
-# obs_stars = obs_stars[-6:]
+
+def plot_projection(obs_stars, fitx, fity, filename=None):
+    
+    """
+    fig, ax = plt.subplots(1, 1)
+    ack = ax.scatter(obs_stars['x'], obs_stars['y'], c=obs_stars['alt'], s=50)
+    ax.set_xlabel('x (pix)')
+    ax.set_ylabel('y (pix)')
+    cb = fig.colorbar(ack)
+    cb.set_label('altitude (deg)')
+    #fig.savefig('Plots/first_wcs_fit.png')
+    """
+
+    fig, (ax1,ax2) = plt.subplots(2)
+    ack = ax1.scatter(obs_stars['x'], obs_stars['y'], c=fitx-obs_stars['x'], s=50)
+    ax1.set_xlabel('x (pix)')
+    ax1.set_ylabel('y (pix)')
+    ax1.set_title('Residuals')
+    cb = fig.colorbar(ack, ax=ax1)
+    cb.set_label(r'$\Delta x$ (pix)')
+
+    ack = ax2.scatter(obs_stars['x'], obs_stars['y'], c=fity-obs_stars['y'], s=50)
+    ax2.set_xlabel('x (pix)')
+    ax2.set_ylabel('y (pix)')
+    ax2.set_title('Residuals')
+    cb = fig.colorbar(ack, ax=ax2)
+    cb.set_label(r'$\Delta y$ (pix)')
+
+
+    if filename is not None:
+        fig.savefig(filename)
+
+
 
 # hmm, not clear how to use the astropy fitting stuff here... just revert to regular scipy optimize
-fun = sky2pix(obs_stars['x'], obs_stars['y'], obs_stars['alt'], obs_stars['az'])
+fun = ZEA_affine(obs_stars['x'], obs_stars['y'], obs_stars['alt'], obs_stars['az'])
 x0 = np.array([np.median(obs_stars['x']), np.median(obs_stars['y']), 1., 0., 0., 1.])
 fit_result = minimize(fun, x0)
 
@@ -126,4 +181,11 @@ xresid = (fitx-obs_stars['x']).std()
 yresid = (fity-obs_stars['y']).std()
 print('Fitted parameters', fit_result.x)
 
+plot_projection(obs_stars, fitx, fity, filename='Plots/resids_wcs_fit.png')
+x0_new = np.zeros(8)
+x0_new[0:6] += fit_result.x
+fun = AZP_affine(obs_stars['x'], obs_stars['y'], obs_stars['alt'], obs_stars['az'])
 
+fit_result = minimize(fun, x0_new)
+fitx, fity = fun.compute(fit_result.x)
+plot_projection(obs_stars, fitx, fity)
