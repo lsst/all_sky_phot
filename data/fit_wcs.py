@@ -9,6 +9,8 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, ICRS, Longitude, Latitude
 from astropy.modeling.projections import Pix2Sky_ZEA, Sky2Pix_ZEA, AffineTransformation2D, Sky2Pix_AZP
 from scipy.optimize import minimize
+from astropy.wcs import Sip
+from astropy.modeling.polynomial import Legendre2D
 
 lsst_location = EarthLocation(lat=-30.2444*u.degree, lon=-70.7494*u.degree, height=2650.0*u.meter)
 
@@ -137,6 +139,120 @@ class ZEA_affine(object):
         return residual
 
 
+def arr2abapbp(x, a_order, b_order, ap_order, bp_order):
+    a_size = (a_order+1)**2
+    b_size = (b_order+1)**2
+    ap_size = (ap_order+1)**2
+    bp_size = (bp_order+1)**2
+    a_ind = np.arange(a_size)
+    b_ind = np.arange(b_size) + a_ind.max() + 1
+    ap_ind = np.arange(ap_size) + b_ind.max() + 1
+    bp_ind = np.arange(bp_size) + ap_ind.max() + 1
+
+    a = x[a_ind].reshape((a_order + 1, a_order + 1))
+    b = x[b_ind].reshape((b_order + 1, b_order + 1))
+    ap = x[ap_ind].reshape((ap_order + 1, ap_order + 1))
+    bp = x[bp_ind].reshape((bp_order + 1, bp_order + 1))
+
+    return a, b, ap, bp
+
+
+class AZP_SIP(object):
+    def __init__(self, x, y, alt, az, ap_order=2, bp_order=2):
+        self.projection = Sky2Pix_AZP()
+        self.affine = AffineTransformation2D()
+        self.sip = Sip
+        self.x = x
+        self.y = y
+        self.alt = alt
+        self.az = az
+        self.ap_order = ap_order
+        self.bp_order = bp_order
+        self.ap_size = (self.ap_order+1)**2
+        self.bp_size = (self.bp_order+1)**2
+        self.ap_ind = np.arange(self.ap_size)
+        self.bp_ind = np.arange(self.bp_size) + self.ap_ind.max()+1
+        self.affine_ind = np.arange(6) + self.bp_ind.max() + 1
+        self.crpix = np.zeros(2)
+        self.zs = np.zeros((3, 3))
+
+    def compute(self, x0):
+        """
+        OK, I think I project from sky to fov, then SIP foc2pix, then affine to
+        shift, rotate, scale the pixel coords.
+        """
+
+        #a = x0[self.a_ind].reshape((self.a_order + 1, self.a_order + 1))
+        #b = x0[self.b_ind].reshape((self.b_order + 1, self.b_order + 1))
+        ap = x0[self.ap_ind].reshape((self.ap_order + 1, self.ap_order + 1))
+        bp = x0[self.bp_ind].reshape((self.bp_order + 1, self.bp_order + 1))
+        #a, b, ap, bp = arr2abapbp(x0, self.a_order, self.b_order, self.ap_order, self.bp_order)
+        sip = self.sip(self.zs, self.zs, ap, bp, self.crpix)
+
+        # Project to plane
+        self.projection.mu = x0[-2]
+        self.projection.gamma = x0[-1]
+        newx, newy = self.projection(self.az, self.alt)
+
+        # Apply SIP distorions
+        new_coords = sip.foc2pix(np.vstack((newx, newy)).T, 0)
+        newx = new_coords[:, 0]
+        newy = new_coords[:, 1]
+
+        # Apply affine transformation
+        self.affine.translation.value = x0[self.affine_ind[0:2]]
+        self.affine.matrix.value = x0[self.affine_ind[2:]]
+        newx, newy = self.affine(newx, newy)
+
+        return newx, newy
+
+    def __call__(self, x0):
+        newx, newy = self.compute(x0)
+        residual = np.sum((newx - self.x)**2 + (newy-self.y)**2)
+        return residual
+
+
+class AZP_Legendre(object):
+    """
+    Use the AZP projection, and then affine and legnedre polynomials
+    """
+    def __init__(self, x, y, alt, az, leg_x_order=2, leg_y_order=2):
+        self.projection = Sky2Pix_AZP()
+        self.affine = AffineTransformation2D()
+        self.x = x
+        self.y = y
+        self.alt = alt
+        self.az = az
+        self.x_leg = Legendre2D(leg_x_order, leg_y_order)
+        self.y_leg = Legendre2D(leg_x_order, leg_y_order)
+
+    def compute(self, x0):
+        self.affine.translation.value = x0[0:2]
+        self.affine.matrix.value = x0[2:6]
+        self.projection.mu = x0[6]
+        self.projection.gamma = x0[7]
+        self.x_leg.parameters = x0[8:blah]
+        #self.y_leg.parameters = x0[]
+
+        # Project to x-y. 
+        newx, newy = self.projection(self.az, self.alt)
+        # Offset in polar coordinates
+        r = (newx**2+newy**2)**0.5
+        theta = np.arctan2(newy, newx)
+        xoff = self.x_leg(r, theta)
+        yoff = self.y_leg(r, theta)
+
+
+        # rotate, shift, and scale result
+        newx, newy = self.affine(newx, newy)
+        return newx, newy
+
+    def __call__(self, x0):
+        newx, newy = self.compute(x0)
+        residual = np.sum((newx - self.x)**2 + (newy-self.y)**2)
+        return residual
+
+
 def plot_projection(obs_stars, fitx, fity, filename=None):
     
     """
@@ -180,6 +296,7 @@ fitx, fity = fun.compute(fit_result.x)
 xresid = (fitx-obs_stars['x']).std()
 yresid = (fity-obs_stars['y']).std()
 print('Fitted parameters', fit_result.x)
+print('ZEA_affine fit result = %f' % fun(fit_result.x))
 
 plot_projection(obs_stars, fitx, fity, filename='Plots/resids_wcs_fit.png')
 x0_new = np.zeros(8)
@@ -189,3 +306,24 @@ fun = AZP_affine(obs_stars['x'], obs_stars['y'], obs_stars['alt'], obs_stars['az
 fit_result = minimize(fun, x0_new)
 fitx, fity = fun.compute(fit_result.x)
 plot_projection(obs_stars, fitx, fity)
+print('AZP_affine fit result = %f' % fun(fit_result.x))
+
+
+a_order = 2
+b_order = 2
+x0_new = np.zeros((a_order+1)**2+(b_order+1)**2 + 8)
+x0_new[-8:] = fit_result.x[-8:]
+
+# huh, the SIP has seperate terms for foc2pix and pix2foc...Seems like there should be 
+# method for keeping those in sync...
+
+fun = AZP_SIP(obs_stars['x'], obs_stars['y'], obs_stars['alt'], obs_stars['az'],
+              ap_order=a_order, bp_order=b_order)
+
+fit_result = minimize(fun, x0_new)
+fitx, fity = fun.compute(fit_result.x)
+plot_projection(obs_stars, fitx, fity)
+print('AZP_SIP order %i fit result = %f' % (a_order, fun(fit_result.x)))
+
+
+
