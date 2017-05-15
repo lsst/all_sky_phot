@@ -1,16 +1,20 @@
 import numpy as np
 from lsst.all_sky_phot import readcr2
 import glob
-import pyds9
+#import pyds9
 from photutils import Background2D, SigmaClip, MedianBackground, DAOStarFinder, CircularAperture, aperture_photometry, CircularAnnulus
 from astropy.stats import sigma_clipped_stats
 import matplotlib.pylab as plt
+import sys
 
 # Let's try running photometry on a night
 
 files = glob.glob('ut012716/*.cr2')
 
-for filename in [files[40]]:
+phot_tables = []
+
+maxi = np.size(files)
+for i, filename in enumerate(files):
     im, header = readcr2(filename)
     sum_image = np.sum(im, axis=2).astype(float)
 
@@ -38,3 +42,9 @@ for filename in [files[40]]:
     phot_table['residual_aperture_sum'] = final_sum
 
     phot_table['mjd'] = header['mjd']
+    phot_tables.append(phot_table)
+    text = "\rprogress = %.if%%" % progress
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
+np.savez('full_night.npz', phot_tables=phot_tables)
