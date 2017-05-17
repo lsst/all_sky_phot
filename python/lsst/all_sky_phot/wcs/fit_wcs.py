@@ -30,7 +30,10 @@ class wcs_azp(object):
         # The wcs object we'll be using
         self.w = wcs.WCS(naxis=2)
         self.w.wcs.crpix = [crpix1, crpix2]
-        self.w.wcs.ctype = ["RA---AZP-SIP", "DEC--AZP-SIP"]
+        # Fix the reference pixel to zenith
+        self.w.wcs.crval = [0, 90]
+        self.w.wcs.ctype = ["RA---ZEA", "DEC--ZEA"]
+        #self.w.wcs.ctype = ["RA---AZP-SIP", "DEC--AZP-SIP"]
 
         self.world_coords = np.vstack((az, alt))
         self.pix_coords = np.vstack((x, y))
@@ -40,7 +43,7 @@ class wcs_azp(object):
         n_a = int((a_order + 1.)**2)
         n_b = int((b_order + 1)**2)
 
-        self.a_ind = np.arange(n_a) + 8
+        self.a_ind = np.arange(n_a) + 10
         self.b_ind = np.arange(n_b) + self.a_ind.max() + 1
 
         self.sip_zeros_a = np.zeros((a_order+1, a_order + 1))
@@ -53,22 +56,29 @@ class wcs_azp(object):
         """
         x0 = [cdelt1, cdelt2, ]
         """
+        # 
+        self.w.wcs.crpix = [x0[0], x0[1]]
+
         # Set the cdelt values
-        self.w.wcs.cdelt = [x0[0], x0[1]]
+        self.w.wcs.cdelt = [x0[2], x0[3]]
 
         # Set the pc matrix
-        self.w.wcs.pc = x0[2:6].reshape((2, 2))
+        #self.w.wcs.pc = x0[4:8].reshape((2, 2))
 
         # Set mu and gamma
-        self.w.wcs.set_pv([(1, 0, x0[6]), (1, 1, x0[7])])
+        #self.w.wcs.set_pv([(1, 0, x0[8]), (1, 1, x0[9])])
 
         # Make a new SIP
-        a = x0[self.a_ind].reshape((self.a_order + 1, self.a_order + 1))
-        b = x0[self.b_ind].reshape((self.b_order + 1, self.b_order + 1))
-        self.w.sip = Sip(a, b, self.sip_zeros_a, self.sip_zeros_b, [0, 0])
+        #a = x0[self.a_ind].reshape((self.a_order + 1, self.a_order + 1))
+        #b = x0[self.b_ind].reshape((self.b_order + 1, self.b_order + 1))
+        #self.w.sip = Sip(a, b, self.sip_zeros_a, self.sip_zeros_b, [0, 0])
 
         # Temp turn off SIP
         self.w.sip = None
+
+    def return_wcs(self, x0):
+        self.set_wcs(x0)
+        return self.w
 
     def __call__(self, x0):
         """

@@ -13,7 +13,7 @@ files = glob.glob('ut012716/*.cr2')
 
 phot_tables = []
 
-maxi = np.size(files)
+maxi = float(np.size(files))
 for i, filename in enumerate(files):
     im, header = readcr2(filename)
     sum_image = np.sum(im, axis=2).astype(float)
@@ -43,6 +43,7 @@ for i, filename in enumerate(files):
 
     phot_table['mjd'] = header['mjd']
     phot_tables.append(phot_table)
+    progress = i/maxi
     text = "\rprogress = %.if%%" % progress
     sys.stdout.write(text)
     sys.stdout.flush()
