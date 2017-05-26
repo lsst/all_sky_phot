@@ -23,6 +23,11 @@ def readYBC(filename='bsc5.dat'):
     fix_colspecs = [(spec[0], spec[1]+1) for spec in colspecs]
 
     data = pd.read_fwf(filename, names=names, colspecs=fix_colspecs)
+    data['RA'] = (data['RAh'] + data['RAm']/60. + data['RAs']/3600.)*360./24.
+    data['Dec'] = data['DEd'] + data['DEm']/60. + data['DEs']/3600.
+    sign = np.ones(data['RAh'].size) 
+    sign[np.where(data['DE-'] == '-')] *= -1
+    data['Dec'] = data['Dec'] * sign
 
     return data
 

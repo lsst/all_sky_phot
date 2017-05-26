@@ -6,6 +6,8 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.table import Table, vstack
 
+import matplotlib.pylab as plt
+
 # restore list of photometry tables, one per image
 temp = np.load('full_night.npz')
 phot_tables = temp['phot_tables'][()]
@@ -30,13 +32,28 @@ def coord_trans(ptable, w):
     ptable['az_rough'] = coords.az
     ptable['ra_rough'] = sky_coords.ra
     ptable['dec_rough'] = sky_coords.dec
+    return ptable
 
 
-for ptable in phot_tables[1:]:
+ra_r = []
+dec_r = []
+mjd = []
+
+for ptable in phot_tables:
     ptable = coord_trans(ptable, w)
+    ra_r.extend(ptable['ra_rough'].value.tolist())
+    dec_r.extend(ptable['dec_rough'].value.tolist())
+    mjd.extend(ptable['mjd'].tolist())
 
-phot_table = vstack(phot_tables)
+names = ['ra', 'dec', 'mjd']
+types = [float]*3
+data = np.array([ra_r, dec_r, mjd])
+
+
+#phot_table = vstack(phot_tables)
 
 
 # np.savez('phot_tables_rough_wcs.npz', phot_tables=phot_tables)
+
+# Looks like the projection is a little wonky at higher airmass.
 

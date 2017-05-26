@@ -9,6 +9,14 @@ import sys
 
 # Let's try running photometry on a night
 
+# photometry parameters
+
+phot_params = {'background_size': 50, 'bk_clip_sigma': 3, 'bk_iter': 10,
+               'bk_filter_size': 6, 'dao_fwhm': 3.0, 'dao_thresh': 5.,
+               'apper_r': 5., 'ann_r_in': 6., 'ann_r_out': 8.}
+
+
+
 files = glob.glob('ut012716/*.cr2')
 
 phot_tables = []
@@ -19,9 +27,10 @@ for i, filename in enumerate(files):
     sum_image = np.sum(im, axis=2).astype(float)
 
     # Do background subtraction
-    sigma_clip = SigmaClip(sigma=3., iters=10)
+    sigma_clip = SigmaClip(sigma=phot_params['bk_clip_sigma'], iters=phot_params['bk_iter'])
     bkg_estimator = MedianBackground()
-    bkg = Background2D(sum_image, (50, 50), filter_size=(6, 6),
+    bkg = Background2D(sum_image, (phot_params['background_size'], phot_params['background_size']),
+                       filter_size=(phot_params['bk_filter_size'], phot_params['bk_filter_size']),
                        sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
     bk_img = sum_image - bkg.background
     mean, median, std = sigma_clipped_stats(bk_img[2000:3000,2000:3000])
