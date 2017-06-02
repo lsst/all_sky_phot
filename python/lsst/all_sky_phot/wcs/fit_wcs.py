@@ -75,8 +75,25 @@ class wcs_azp(object):
             b = x0[self.b_ind].reshape((self.b_order + 1, self.b_order + 1))
             self.w.sip = Sip(a, b, self.sip_zeros_a, self.sip_zeros_b, self.w.wcs.crpix)
 
-        # Temp turn off SIP
-        # self.w.sip = None
+    def wcs2x0(self, wcs):
+        """
+        decompose a wcs object back into a single vector
+        """
+
+        x0 = np.zeros(self.b_ind.max()+1)
+
+        x0[0] = wcs.wcs.crpix[0]
+        x0[1] = wcs.wcs.crpix[1]
+        x0[2] = wcs.wcs.cdelt[0]
+        x0[3] = wcs.wcs.cdelt[1]
+        x0[4:8] = wcs.wcs.pc.reshape(4)
+        pv = wcs.wcs.get_pv()
+        x0[8] = pv[0][2]
+        x0[9] = pv[1][2]
+        if wcs.sip is not None:
+            x0[self.a_ind] = wcs.sip.a.reshape((self.a_order+1.)**2)
+            x0[self.b_ind] = wcs.sip.b.reshape((self.b_order+1.)**2)
+        return x0
 
     def return_wcs(self, x0):
         self.set_wcs(x0)
