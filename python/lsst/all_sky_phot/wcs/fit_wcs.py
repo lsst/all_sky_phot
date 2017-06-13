@@ -79,9 +79,12 @@ class wcs_azp(object):
         """
         decompose a wcs object back into a single vector
         """
+        if wcs.sip is None:
+            max_size = 10
+        else:
+            max_size = self.b_ind.max()+1
 
-        x0 = np.zeros(self.b_ind.max()+1)
-
+        x0 = np.zeros(max_size)
         x0[0] = wcs.wcs.crpix[0]
         x0[1] = wcs.wcs.crpix[1]
         x0[2] = wcs.wcs.cdelt[0]
