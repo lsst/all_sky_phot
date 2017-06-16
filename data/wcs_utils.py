@@ -11,6 +11,15 @@ lsst_location = EarthLocation(lat=-30.2444*u.degree,
                               height=2650.0*u.meter)
 
 
+def robustRMS(x):
+    """
+    RMS based on the inter-quartile range.
+    """
+    iqr = np.percentile(x, 75)-np.percentile(x, 25)
+    rms = iqr/1.349  # approximation
+    return rms
+
+
 def radec2altaz(ra, dec, mjd, location=lsst_location):
     """I need a stupid converter
     """
@@ -87,9 +96,11 @@ def match_catalog(ptable, catalog, cat_mags, location=lsst_location):
     return ptable
 
 
-def xy_altaz_mapping(photo_array, d2d_limit=2., mag_limit=2.):
-    """Take an array that has been matched, and try to generate a good 
-    map that can be used to fit a better WCS.
+def trim_stars(photo_array, d2d_limit=1., mag_limit=1.5, nstars=5):
+    """Take an array that has been matched, and try to filter out the spurrious 
+    matches to make a reliable x,y,alt,az table for fitting.
+
+    Return the indices that meet the criteria
     """
 
     # Maybe for each star, make a running median and robust rms for x,y,mag as 
@@ -102,9 +113,31 @@ def xy_altaz_mapping(photo_array, d2d_limit=2., mag_limit=2.):
 
     # The unique stars that I should loop though
     ustars = np.unique(photo_array['bright_star_idx'][good_match])
+    print 'found %i unque stars' % np.size(ustars)
+    for star in ustars:
+        matching = np.where((photo_array['bright_star_idx'] == star) & (good_match == True))
+        # toss if we don't have enough of this star
+        if np.size(matching[0]) < nstars:
+            good_match[matching] = False
+        else:
+            if np.size(np.unique(photo_array['mjd'][matching])) < np.size(matching[0]):
+                # Need to week out times where we have two matches
+                for mjd in photo_array['mjd'][matching]:
+                    # Need to pick the best of these
+                    indxs = np.where((photo_array['mjd'] == mjd) &
+                                     (photo_array['bright_star_idx'] == star) &
+                                     (good_match == True))[0]
+                    # Just take the closest one. Maybe consider mag in the future
+                    good_match[indxs[np.where(photo_array['d2d'][indxs] >
+                                              photo_array['d2d'][indxs].min())]] = False
+            matching = np.where((photo_array['bright_star_idx'] == star) & (good_match == True))
+            # If we don't match the star enough times, toss it.
+            if np.size(matching[0]) < nstars:
+                good_match[matching] = False
+    return good_match
 
 
 
 
-    pass
+
 
