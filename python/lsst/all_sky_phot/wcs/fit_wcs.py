@@ -113,6 +113,7 @@ class wcs_azp(object):
         except:
             # if the SIP can't be inverted.
             return np.inf
+        # Let's try changing this to a median to help if stars are mis-matched
         resid_sq = np.sum((self.x - pix_x)**2 + (self.y - pix_y)**2)
         return resid_sq
 
