@@ -6,10 +6,7 @@ import astropy.units as u
 from astropy.time import Time
 
 # Let's make a new attempt to fit things, this time using the WCS object.
-__all__ = ['wcs_azp', 'wcs_zea', 'wcs_refine']
-
-
-
+__all__ = ['wcs_azp', 'wcs_zea', 'wcs_refine', 'wcs_refine_zea']
 
 
 class wcs_azp(object):
@@ -122,10 +119,9 @@ class wcs_azp(object):
 
 
 class wcs_zea(wcs_azp):
-    def __init__(self, x, y, alt, az, a_order=2, b_order=2, crpix1=0, crpix2=0, nparams=8):
+    def __init__(self, x, y, alt, az, a_order=2, b_order=2, crpix1=0, crpix2=0):
         super(wcs_zea, self).__init__(x, y, alt, az, a_order=a_order,
-                                      b_order=b_order, crpix1=crpix1, crpix2=crpix2,
-                                      nparams=nparams)
+                                      b_order=b_order, crpix1=crpix1, crpix2=crpix2)
         self.w.wcs.ctype = ["RA---ZEA-SIP", "DEC--ZEA-SIP"]
 
     def set_wcs(self, x0):
@@ -142,10 +138,30 @@ class wcs_zea(wcs_azp):
         self.w.wcs.pc = x0[4:8].reshape((2, 2))
 
         # Make a new SIP
-        if np.size(x0) > 10:
+        if np.size(x0) > 8:
             a = x0[self.a_ind].reshape((self.a_order + 1, self.a_order + 1))
             b = x0[self.b_ind].reshape((self.b_order + 1, self.b_order + 1))
             self.w.sip = Sip(a, b, self.sip_zeros_a, self.sip_zeros_b, self.w.wcs.crpix)
+
+    def wcs2x0(self, wcs):
+        """
+        decompose a wcs object back into a single vector
+        """
+        if wcs.sip is None:
+            max_size = 10
+        else:
+            max_size = self.b_ind.max()+1
+
+        x0 = np.zeros(max_size)
+        x0[0] = wcs.wcs.crpix[0]
+        x0[1] = wcs.wcs.crpix[1]
+        x0[2] = wcs.wcs.cdelt[0]
+        x0[3] = wcs.wcs.cdelt[1]
+        x0[4:8] = wcs.wcs.pc.reshape(4)
+        if wcs.sip is not None:
+            x0[self.a_ind] = wcs.sip.a.reshape((self.a_order+1.)**2)
+            x0[self.b_ind] = wcs.sip.b.reshape((self.b_order+1.)**2)
+        return x0
 
 
 def mag2quasi_dist(mag):
@@ -160,9 +176,32 @@ class wcs_refine(wcs_azp):
     """Take a catalog of alt,az positions of known stars and minimize the d3 distance
     """
     def __init__(self, x, y, xy_mag, xy_mjd, ra, dec, rd_mag, location=None,
-                 a_order=0, b_order=0, crpix1=0, crpix2=0, alt_limit=15.):
+                 a_order=0, b_order=0, crpix1=0, crpix2=0, alt_limit=15.,
+                 what_min='d2'):
+        """
+        Parameters
+        ----------
+        x : array
+            x-positions of detected objects on the chip
+        y : array
+            y-positions of detected objects
+        xy_mag : array
+            magnitude of the detected objects
+        xy_mjd : float
+            The MJD at the time of the observations
+        ra : array
+            RA values from a reference catalog
+        dec : array
+            Dec values from reference catalog
+        rd_mag : array
+            Magnitude values for reference catalog stars
+        what_min : 'd2' or 'd3'
+            Should it return the d2 (angular) distances or the d3 (spatial) distances
+            (assuming all stars have absolute magnitude of 10)
+        """
 
         self.alt_limit = alt_limit
+        self.what_min = what_min
         # Assume all stars are V=10 for distance purposes
         if location is None:
             self.location = EarthLocation(lat=-30.2444*u.degree,
@@ -216,7 +255,98 @@ class wcs_refine(wcs_azp):
 
     def __call__(self, x0):
         indx, d2, d3 = self.find_distances(x0)
-        result = np.sum(d2)
+        if self.what_min == 'd2':
+            result = np.sum(d2)
+        elif self.what_min == 'd3':
+            result = np.sum(d3)
         return result
 
 
+class wcs_refine_zea(wcs_zea):
+    """Take a catalog of alt,az positions of known stars and minimize the d3 distance
+    """
+    def __init__(self, x, y, xy_mag, xy_mjd, ra, dec, rd_mag, location=None,
+                 a_order=0, b_order=0, crpix1=0, crpix2=0, alt_limit=15.,
+                 what_min='d2'):
+        """
+        Parameters
+        ----------
+        x : array
+            x-positions of detected objects on the chip
+        y : array
+            y-positions of detected objects
+        xy_mag : array
+            magnitude of the detected objects
+        xy_mjd : float
+            The MJD at the time of the observations
+        ra : array
+            RA values from a reference catalog
+        dec : array
+            Dec values from reference catalog
+        rd_mag : array
+            Magnitude values for reference catalog stars
+        what_min : 'd2' or 'd3'
+            Should it return the d2 (angular) distances or the d3 (spatial) distances
+            (assuming all stars have absolute magnitude of 10)
+        """
+
+        self.alt_limit = alt_limit
+        self.what_min = what_min
+        # Assume all stars are V=10 for distance purposes
+        if location is None:
+            self.location = EarthLocation(lat=-30.2444*u.degree,
+                                     lon=-70.7494*u.degree,
+                                     height=2650.0*u.meter)
+        else:
+            self.location = location
+
+        self.x = x
+        self.y = y
+        self.dist = mag2quasi_dist(xy_mag)*u.pc
+
+        aa_dist = mag2quasi_dist(rd_mag)
+        ref_catalog = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, distance=aa_dist*u.pc)
+        self.time = Time(xy_mjd, format='mjd')
+        self.ref_catalog = ref_catalog.transform_to(AltAz(obstime=self.time,
+                                                          location=self.location))
+        self.ref_catalog = self.ref_catalog[np.where(self.ref_catalog.alt.value > alt_limit)]
+
+        # The wcs object we'll be using
+        self.w = wcs.WCS(naxis=2)
+        self.w.wcs.crpix = [crpix1, crpix2]
+        # Fix the reference pixel to zenith
+        self.w.wcs.crval = [0, 90]
+        self.w.wcs.ctype = ["RA---ZEA-SIP", "DEC--ZEA-SIP"]
+
+        # Make a sip object with all zero values
+        self.a_order = a_order
+        self.b_order = b_order
+        n_a = int((a_order + 1.)**2)
+        n_b = int((b_order + 1)**2)
+
+        self.a_ind = np.arange(n_a) + 10
+        self.b_ind = np.arange(n_b) + self.a_ind.max() + 1
+
+        self.sip_zeros_a = np.zeros((a_order+1, a_order + 1))
+        self.sip_zeros_b = np.zeros((b_order+1, b_order + 1))
+        self.w.sip = None
+
+    def find_distances(self, x0):
+        self.set_wcs(x0)
+        detected_azs, detected_alts = self.w.all_pix2world(self.x, self.y, 0)
+        observed_cat = SkyCoord(detected_azs*u.degree, detected_alts*u.degree,
+                                distance=self.dist, frame=AltAz(obstime=self.time, location=self.location))
+        try:
+            indx, d2, d3 = self.ref_catalog.match_to_catalog_3d(observed_cat)
+            result = (indx, d2.value, d3.value)
+        except:
+            result = ([], np.inf, np.inf)
+        return result
+
+    def __call__(self, x0):
+        indx, d2, d3 = self.find_distances(x0)
+        if self.what_min == 'd2':
+            result = np.sum(d2)
+        elif self.what_min == 'd3':
+            result = np.sum(d3)
+        return result

@@ -9,7 +9,7 @@ import sys
 # Let's try running photometry on a night
 
 
-def phot_files(files, phot_params=None, savefile='phot_night.npz'):
+def phot_files(files, phot_params=None, savefile='phot_night.npz', clip_negative=True):
 
     if phot_params is None:
         phot_params = {'background_size': 50, 'bk_clip_sigma': 3, 'bk_iter': 10,
@@ -56,6 +56,11 @@ def phot_files(files, phot_params=None, savefile='phot_night.npz'):
         bkg_sum = bkg_mean * apertures.area()
         final_sum = phot_table['aperture_sum_0'] - bkg_sum
         phot_table['residual_aperture_sum'] = final_sum
+
+        # Clip any negative flux objects
+        if clip_negative:
+            good = np.where(phot_table['residual_aperture_sum'] > 0)
+            phot_table = phot_table[good]
 
         # Fill in the MJD
         phot_table['mjd'] = header['mjd']
