@@ -1,6 +1,6 @@
 import numpy as np
 import healpy as hp
-from scipy.interpolate import interp2d, RectBivariateSpline
+from scipy.interpolate import interp2d, RectBivariateSpline, LinearNDInterpolator
 from scipy.spatial import KDTree
 from scipy.optimize import minimize
 
@@ -28,27 +28,18 @@ class Fisheye(object):
         # For a point that lands on x,y shift x by xshift and y by yshift
         self.xshift = xshift
         self.yshift = yshift
+                
+        # If I bothered making things into grids, I could make this a RectBivariateSpline
+        self.xinterp = LinearNDInterpolator(np.array([x, y]).T, xshift)
+        self.yinterp = LinearNDInterpolator(np.array([x, y]).T, yshift)
 
-        
-        self.xinterp = RectBivariateSpline(x, y, xshift)
-        self.yinterp = RectBivariateSpline(x, y, yshift)
+        reverse_x = x + xshift
+        reverse_y = y + yshift
 
-        # Grid of alt and az points
-        lat, lon = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
-        alt = np.pi / 2.0 - lat
-        az = lon
-        # Only take points above the horizon
-        good = np.where(alt > 0.)
-        alt = alt[good]
-        az = az[good]
-        # 
-        matchx, matchy = self.altaz2xy(alt, az)
-        self.altinterp = interp2d(matchx, matchy, alt)
-        self.azinterp = interp2d(matchx, matchy, az)
-
+        self.reverse_xinterp = LinearNDInterpolator(np.array([reverse_x, reverse_y]).T, -xshift)
+        self.reverse_yinterp = LinearNDInterpolator(np.array([reverse_x, reverse_y]).T, -yshift)
+       
     def all_world2pix(self, az, alt):
-        # XXX--should make the API look like WCS, so it can be easy to swap out!
-
         """
         Parameters:
         -----------
@@ -66,9 +57,24 @@ class Fisheye(object):
 
     def all_pix2world(self, x, y):
         """
+        Parameters
+        ----------
+        x : array
+           x pixel corrdinate
+        y : array
+           y pixel coordinate
+
+        Returns
+        -------
+        az : array
+            The azimuth (degrees)
+        alt : array
+            Altitude (degrees)
         """
-        alt = self.altinterp(x, y)
-        az = self.azinterp(x, y)
+        u = self.reverse_xinterp(x, y)
+        v = self.reverse_yinterp(x, y)
+        az, alt = self.wcs.all_pix2world(u, v, 0)
+
         return alt, az
 
 
@@ -86,7 +92,7 @@ class dist_minimizer(object):
 
 
 def fit_xyshifts(x, y, alt, az, wcs, max_shift=20, min_points=3, windowsize=200,
-                 xrange=[800,5000], yrange=[0,3700], num_points=20):
+                 xrange=[800, 5000], yrange=[0, 3700], num_points=20):
     """Generate a distortion map
     """
     observed_kd = KDTree(np.array([x, y]).T)
