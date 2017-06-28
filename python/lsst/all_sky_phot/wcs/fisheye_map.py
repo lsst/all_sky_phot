@@ -2,9 +2,9 @@ import numpy as np
 from scipy.interpolate import interp2d, RectBivariateSpline, LinearNDInterpolator
 from scipy.spatial import KDTree
 from scipy.optimize import minimize
+from scipy.stats import binned_statistic
 
-
-__all__ = ['Fisheye', 'fit_xyshifts']
+__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper']
 
 
 class Fisheye(object):
@@ -185,13 +185,43 @@ def fit_xyshifts(x, y, alt, az, wcs, max_shift=40., min_points=3, windowsize=200
     return xgridpts, ygridpts, xoffs, yoffs, npts, distances
 
 
+class dist_mapper_minimizer(object):
+    def __init__(self, catalog_u, catalog_v, mjd, kdtree, indx, ngrid):
+        self.u = catalog_u
+        self.v = catalog_v
+        self.mjd = mjd
+        self.kdtree = kdtree
+        self.ngrid = ngrid
+        self.indx = indx
+
+        self.bins = np.arange(self.indx.min(), self.indx.max()+2, 1) - 0.5
+
+    def __call__(self, x0):
+        xshifts = x0[0:self.ngrid]
+        yshifts = x0[self.ngrid:]
+
+        final_x = self.u + xshifts[self.indx]
+        final_y = self.v + yshifts[self.indx]
+
+        distances, indx = self.kdtree.query(np.array([final_x, final_y, self.mjd]).T)
+
+        hist_median, bin_edges, bn = binned_statistic(self.indx, distances,
+                                                      bins=self.bins, statistic='median')
+        count_median, be, bn, =  binned_statistic(self.indx, distances,
+                                                      bins=self.bins, statistic='count')
+        good = np.where(count_median > 0)
+        result = np.mean(hist_median[good])
+        # print 'mean of medians', result
+        return result
+
+
 def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
-                      mjd_multiplier=1e6):
+                      mjd_multiplier=1e4, urange=[800, 5000], vrange=[0, 3700], num_points=5):
     """Try to find a set of distorions that do a good job matching the catalog alt, az positions to
     observed chip positions
     """
 
-    # For each unique mjd, construct a kdtree that can be querried I guess.
+    # Generate the u,v positions of catalog objects
     catalog_u, catalog_v = wcs.all_world2pix(catalog_az, catalog_alt, 0)
 
     # Let's make things 3 dimensional, so we can use the kdtree to do the mjd sorting for us
@@ -205,12 +235,16 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
     ugrid = ugrid.ravel()
     vgrid = vgrid.ravel()
 
-    ref_kd = KDTree(np.array(ugrid, vgrid).T)
+    ref_kd = KDTree(np.array([ugrid, vgrid]).T)
 
     # Find the reference index for each catalog observation
-    distances, indx = ref_kd.query(np.array(catalog_u, catalog_v).T)
+    distances, indx = ref_kd.query(np.array([catalog_u, catalog_v]).T)
 
-    # Now I can make a function that make a grid of x offsets and y offsets, applies them to the
-    # catalog u,v corrds, and finds the median distance to observed points.
+    fun = dist_mapper_minimizer(catalog_u, catalog_v, catalog_mjd*mjd_multiplier,
+                                observed_kd, indx, ugrid.size)
+    x0 = np.zeros(ugrid.size*2, dtype=float)
+    result = minimize(fun, x0, method='Powell', options={'maxiter': 3})
 
-    pass
+    return result, ugrid, vgrid
+
+
