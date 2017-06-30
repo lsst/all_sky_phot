@@ -55,7 +55,7 @@ class Fisheye(object):
         np.savez(filename, wcs=self.wcs, x=self.x, y=self.y,
                  xshift=self.xshift, yshift=self.yshift)
 
-    def all_world2pix(self, az, alt):
+    def all_world2pix(self, az, alt, ref):
         """
         Parameters:
         -----------
@@ -64,9 +64,9 @@ class Fisheye(object):
         az : array
             Azimuth of points
         """
-        u, v = self.wcs.all_world2pix(az, alt, 0)
-        x = self.xinterp(u, v)
-        y = self.yinterp(u, v)
+        u, v = self.wcs.all_world2pix(az, alt, ref)
+        x = u + self.xinterp(u, v)
+        y = v + self.yinterp(u, v)
         return x, y
 
         pass
@@ -87,8 +87,8 @@ class Fisheye(object):
         alt : array
             Altitude (degrees)
         """
-        u = self.reverse_xinterp(x, y)
-        v = self.reverse_yinterp(x, y)
+        u = x + self.reverse_xinterp(x, y)
+        v = y + self.reverse_yinterp(x, y)
         az, alt = self.wcs.all_pix2world(u, v, 0)
 
         return alt, az
@@ -239,6 +239,9 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
                                 observed_kd)
     x0 = np.array([0., 0.])
     result = minimize(fun, x0, method='Powell')
+    # Because I can
+    result.ncat = catalog_mjd.size
+    result.nobs = observed_mjd.size
 
     return result
 
