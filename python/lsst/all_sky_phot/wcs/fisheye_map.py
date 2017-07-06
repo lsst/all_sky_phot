@@ -4,7 +4,7 @@ from scipy.spatial import KDTree
 from scipy.optimize import minimize
 from scipy.stats import binned_statistic
 
-__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper']
+__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper', 'load_fisheye']
 
 
 class Fisheye(object):
