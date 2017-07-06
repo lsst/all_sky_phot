@@ -2,23 +2,6 @@ import numpy as np
 import healpy as hp
 
 
-class small_shift_find(object):
-    """See if there is a small shift that needs to be applied on top of the wcs.
-    """
-    def __init__(self, observed_x, observed_y, observed_mag, maxshift=5):
-
-        self.maxshift = maxshift
-        # Make a kdtree for the observed points
-        pass
-
-    def distance_median(self, x0):
-
-
-
-    def __call__(self, catalog_x, catalog_y, catalog_mag):
-
-
-        return shift_x, shift_y
 
 
 
@@ -52,6 +35,9 @@ def calc_extinction(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=
         measured extinction in magnitudes.
     """
 
+    # Find the x-y positions of all the healpixels
+
+
     
     # Find the healpixel for each catalog star
     lat = np.radians(90.-catalog_alt)
@@ -66,7 +52,10 @@ def calc_extinction(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=
 
 
     # Run detection on the image
-    
+    lat, lon = hp.pix2ang(nside, np.arange(hp.nisde2npix(nside)))
+    hp_alt = np.degrees(np.pi/2. - lat)
+    hp_az = np.degrees(lon)
+    hp_x, hp_y = wcs.all_world2pix(hp_az, hp_alt, 0)
     
 
 
@@ -75,6 +64,9 @@ def calc_extinction(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=
     uhp = np.unique(catalog_hp)
     # Loop over each healpixel, compute the extinction
     for healpix_id in uhp:
+        catalog_inhp = np.where(catalog_hp == healpix_id)
+
+        # Find the detected stars possibly near the healpixel
         
 
 

@@ -216,14 +216,15 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
     catalog_u, catalog_v = wcs.all_world2pix(catalog_az, catalog_alt, 0)
 
     # Crop down to the region of the chip we are interested in
-    good = np.where((catalog_u < u_center+window) & (catalog_u > u_center-window) &
-                    (catalog_v < v_center+window) & (catalog_v > v_center-window))
+    rad = ((catalog_u-u_center)**2+(catalog_v-v_center)**2)**0.5
+    good = np.where(rad < window)
+
     catalog_u = catalog_u[good]
     catalog_v = catalog_v[good]
     catalog_mjd = catalog_mjd[good]
 
-    good = np.where((observed_x < u_center+window+pad) & (observed_x > u_center-window-pad) &
-                    (observed_y < v_center+window+pad) & (observed_y > v_center-window-pad))
+    rad = ((observed_x-u_center)**2+(observed_y-v_center)**2)**0.5
+    good = np.where(rad < window+pad)
     observed_x = observed_x[good]
     observed_y = observed_y[good]
     observed_mjd = observed_mjd[good]
