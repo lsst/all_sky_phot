@@ -98,7 +98,7 @@ def load_fisheye(filename):
     """Load a Fisheye object from a savefile
     """
     data = np.load(filename)
-    result = Fisheye(data['wcs'], data['x'], data['y'], data['xshift'], data['yshift'])
+    result = Fisheye(data['wcs'][()], data['x'], data['y'], data['xshift'], data['yshift'])
     return result
 
 

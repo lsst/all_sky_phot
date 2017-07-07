@@ -3,12 +3,13 @@ import healpy as hp
 import photutils as phu
 from scipy.stats import binned_statistic
 from phot_night import default_phot_params
+from astropy.stats import sigma_clipped_stats
 
 
 __all__ = ['extinction_map']
 
 
-def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=32, phot_params=None):
+def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=8, phot_params=None):
     """
     Generate a map of the extinction on the sky
 
@@ -38,7 +39,7 @@ def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=3
     """
 
     if phot_params is None:
-        phot_params = default_phot_params
+        phot_params = default_phot_params()
 
     # Find the healpixel for each catalog star
     lat = np.radians(90.-catalog_alt)
@@ -51,12 +52,13 @@ def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=3
     catalog_hp = catalog_hp[order]
     catalog_x, catalog_y = wcs.all_world2pix(catalog_az, catalog_alt, 0)
 
+    good_transform = ~np.isnan(catalog_x)
 
     # XXX--for now, let's assume the WCS is good enough
     # Run detection on the image
 
     # Find the x,y positions of helpix centers
-    lat, lon = hp.pix2ang(nside, np.arange(hp.nisde2npix(nside)))
+    lat, lon = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     hp_alt = np.degrees(np.pi/2. - lat)
     hp_az = np.degrees(lon)
     hp_x, hp_y = wcs.all_world2pix(hp_az, hp_alt, 0)
@@ -68,10 +70,10 @@ def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=3
                            filter_size=(phot_params['bk_filter_size'], phot_params['bk_filter_size']),
                            sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
     bk_img = image - bkg.background
-    mean, median, std = phu.sigma_clipped_stats(bk_img[phot_params['stat_region'][0]:phot_params['stat_region'][1],
-                                                phot_params['stat_region'][2]:phot_params['stat_region'][3]])
+    #mean, median, std = sigma_clipped_stats(bk_img[phot_params['stat_region'][0]:phot_params['stat_region'][1],
+    #                                        phot_params['stat_region'][2]:phot_params['stat_region'][3]])
 
-    positions = list(zip(catalog_x, catalog_y))
+    positions = list(zip(catalog_x[good_transform], catalog_y[good_transform]))
     apertures = phu.CircularAperture(positions, r=phot_params['apper_r'])
     annulus_apertures = phu.CircularAnnulus(positions, r_in=phot_params['ann_r_in'],
                                             r_out=phot_params['ann_r_out'])
@@ -84,12 +86,13 @@ def extinction_map(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, nside=3
     phot_table['residual_aperture_sum'] = final_sum
 
     phot_table['residual_aperture_mag'] = -2.5*np.log10(final_sum) + zp
+    detected = np.where(final_sum > 0)
 
-    mag_difference = phot_table['residual_aperture_mag'] - catalog_mag
+    mag_difference = phot_table['residual_aperture_mag'][detected] - catalog_mag[good_transform][detected]
 
     bins = np.arange(hp.nside2npix(nside)+1)-0.5
 
-    result, be, bn = binned_statistic(catalog_hp, mag_difference, bins=bins)
+    result, be, bn = binned_statistic(catalog_hp[good_transform][detected], mag_difference, bins=bins)
 
     return result
 
