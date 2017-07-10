@@ -4,7 +4,7 @@ from scipy.spatial import KDTree
 from scipy.optimize import minimize
 from scipy.stats import binned_statistic
 
-__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper']
+__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper', 'load_fisheye']
 
 
 class Fisheye(object):
@@ -98,7 +98,7 @@ def load_fisheye(filename):
     """Load a Fisheye object from a savefile
     """
     data = np.load(filename)
-    result = Fisheye(data['wcs'], data['x'], data['y'], data['xshift'], data['yshift'])
+    result = Fisheye(data['wcs'][()], data['x'], data['y'], data['xshift'], data['yshift'])
     return result
 
 
