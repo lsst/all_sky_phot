@@ -1,4 +1,4 @@
-from netbpmfile import NetpbmFile
+from lsst.all_sky_phot.netbpmfile import NetpbmFile
 import subprocess
 import re
 import datetime
@@ -34,7 +34,7 @@ def readcr2(filename):
     # Getting the EXIF of CR2 with dcraw
     p = subprocess.Popen(["dcraw", "-i", "-v", filename], stdout=subprocess.PIPE)
     cr2header = p.communicate()[0]
-
+    cr2header = cr2header.decode("utf-8")
     # Catching the Timestamp
     m = re.search('(?<=Timestamp:).*', cr2header)
     date1 = m.group(0).split()

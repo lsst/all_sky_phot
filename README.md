@@ -6,5 +6,5 @@ Tools for converting all sky camera images into transparency maps
 numpy
 dcraw
 astropy
-photutils (pip-installable)
-astroquery (pip-installable)
+photutils (pip-installable, conda install -c astropy photutils)
+astroquery (pip-installable, or conda install -c astropy astroquery)
