@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from lsst.all_sky_phot import readcr2
 from photutils import Background2D, SigmaClip, MedianBackground, DAOStarFinder, CircularAperture, aperture_photometry, CircularAnnulus
@@ -24,7 +25,7 @@ def phot_image(image, phot_params=None, clip_negative=True, verbose=False):
     """
     # Do background subtraction
     if verbose:
-        print 'background'
+        print('background')
     sigma_clip = SigmaClip(sigma=phot_params['bk_clip_sigma'], iters=phot_params['bk_iter'])
     bkg_estimator = MedianBackground()
     bkg = Background2D(image, (phot_params['background_size'], phot_params['background_size']),
@@ -36,7 +37,7 @@ def phot_image(image, phot_params=None, clip_negative=True, verbose=False):
 
     # Find sources
     if verbose:
-        print 'finding sources'
+        print('finding sources')
     daofind = DAOStarFinder(fwhm=phot_params['dao_fwhm'],
                             threshold=phot_params['dao_thresh']*std)
     sources = daofind(bk_img)
@@ -49,7 +50,7 @@ def phot_image(image, phot_params=None, clip_negative=True, verbose=False):
 
     # I'm kind of sad that I can't do median to get the local background?
     if verbose:
-        print 'doing photometry'
+        print('doing photometry')
     apers = [apertures, annulus_apertures]
     phot_table = aperture_photometry(bk_img, apers)
     bkg_mean = phot_table['aperture_sum_1'] / annulus_apertures.area()
@@ -93,7 +94,7 @@ def phot_night(files, phot_params=None, savefile='phot_night.npz', clip_negative
     maxi = float(np.size(files))
     for i, filename in enumerate(files):
         if verbose:
-            print 'reading image'
+            print('reading image')
         im, header = readcr2(filename)
         sum_image = np.sum(im, axis=2).astype(float)
 

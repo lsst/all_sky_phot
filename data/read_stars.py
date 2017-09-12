@@ -15,7 +15,7 @@ def read_manual_stars(filename):
     lsst_location = EarthLocation(lat=-30.2444*u.degree, lon=-70.7494*u.degree, height=2650.0*u.meter)
 
     names = ['star_name', 'x', 'y', 'mjd']
-    types = ['|S10', float, float, float]
+    types = ['|U10', float, float, float]
 
     obs_stars = np.loadtxt('starcoords.dat', dtype=list(zip(names, types)), skiprows=1, delimiter=',')
 
@@ -30,7 +30,7 @@ def read_manual_stars(filename):
 
     ustars = np.unique(obs_stars['star_name'])
     names = ['star_name', 'ra', 'dec']
-    types = ['|S20']*3
+    types = ['|U20']*3
     star_coords = np.zeros(ustars.size, dtype=list(zip(names, types)))
 
     # Get the RA,Dec values for each star from Simbad
@@ -63,7 +63,7 @@ def read_manual_stars(filename):
         azs.extend(trans.az.value.tolist())
 
     names = ['star_name', 'alt', 'az', 'mjd']
-    types = ['|S10', float, float, float]
+    types = ['|U10', float, float, float]
 
     predicted_array = np.zeros(len(azs), dtype=list(zip(names, types)))
     predicted_array['star_name'] = np.array(star_names)
@@ -73,8 +73,8 @@ def read_manual_stars(filename):
 
     predicted_array.sort(order=['star_name', 'mjd'])
     obs_stars.sort(order=['star_name', 'mjd'])
-    hash1 = np.core.defchararray.add(obs_stars['star_name'], obs_stars['mjd'].astype('|S20'))
-    hash2 = np.core.defchararray.add(predicted_array['star_name'], predicted_array['mjd'].astype('|S20'))
+    hash1 = np.core.defchararray.add(obs_stars['star_name'], obs_stars['mjd'].astype('|U20'))
+    hash2 = np.core.defchararray.add(predicted_array['star_name'], predicted_array['mjd'].astype('|U20'))
 
     good = np.in1d(hash2, hash1)
     predicted_array = predicted_array[good]

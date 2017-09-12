@@ -2,7 +2,7 @@ import numpy as np
 import healpy as hp
 import photutils as phu
 from scipy.stats import binned_statistic
-from phot_night import default_phot_params
+from lsst.all_sky_phot.phot_night import default_phot_params
 from astropy.stats import sigma_clipped_stats
 
 
