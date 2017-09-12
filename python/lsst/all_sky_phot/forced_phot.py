@@ -10,7 +10,7 @@ __all__ = ['forced_phot']
 
 
 def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id,
-                nside=8, phot_params=None, do_background=False, return_table=False):
+                nside=8, phot_params=None, do_background=False, return_table=False, mjd=0.):
     """
     Generate a map of the extinction on the sky
 
@@ -94,11 +94,16 @@ def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id
     phot_table['residual_aperture_mag'] = -2.5*np.log10(final_sum) + zp
     detected = np.where(final_sum > 0)
 
-    if return_table:
-        return phot_table
-    else:
-        mag_difference = phot_table['residual_aperture_mag'][detected] - catalog_mag[good_transform][detected]
-        bins = np.arange(hp.nside2npix(nside)+1)-0.5
-        result, be, bn = binned_statistic(catalog_hp[good_transform][detected], mag_difference, bins=bins)
+    mag_difference = phot_table['residual_aperture_mag'][detected] - catalog_mag[good_transform][detected]
+    phot_table['mag_difference'] = np.zeros(phot_table['residual_aperture_mag'].data.size, dtype=float)
+    phot_table['mjd'] = np.zeros(phot_table['residual_aperture_mag'].data.size, dtype=float)
+    phot_table['mag_difference'][detected] = mag_difference
+    phot_table['mjd'] = mjd
 
-    return result
+    bins = np.arange(hp.nside2npix(nside)+1)-0.5
+    result, be, bn = binned_statistic(catalog_hp[good_transform][detected], mag_difference, bins=bins)
+
+    if return_table:
+        return phot_table, result
+    else:
+        return result
