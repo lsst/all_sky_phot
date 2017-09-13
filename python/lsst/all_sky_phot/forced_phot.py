@@ -107,3 +107,4 @@ def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id
         return phot_table, result
     else:
         return result
+
