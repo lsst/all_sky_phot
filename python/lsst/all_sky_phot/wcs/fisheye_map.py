@@ -4,7 +4,7 @@ from scipy.spatial import KDTree
 from scipy.optimize import minimize
 import sys
 
-__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper', 'load_fisheye', 'distortion_mapper_looper']
+__all__ = ['Fisheye', 'distortion_mapper', 'load_fisheye', 'distortion_mapper_looper']
 
 
 class Fisheye(object):
@@ -130,70 +130,6 @@ class dist_minimizer(object):
         yy = self.y + x0[1]
         distances, indx = self.kdtree.query(np.array((xx, yy)).T)
         return np.median(distances)
-
-
-def fit_xyshifts(x, y, alt, az, wcs, max_shift=40., min_points=3, windowsize=200,
-                 xrange=[800, 5000], yrange=[0, 3700], num_points=20):
-    """Generate a best-fit distortion map.
-
-    Parameters
-    ----------
-    x : array
-        The x-positions of detected objects on the chip
-    y : array
-        The y-positions of detected objects on the chip
-    alt : array
-        Altitudes of objects from a reference catalog
-    az : array
-        Azimuths of objects from a reference catalog
-    wcs : astropy.wcs object
-        The rough WCS for the chip
-    max_shift : float (20.)
-        The maximum number of pixels (in x or y) to allow
-    min_points : int (3)
-        The number of catalog objects that need to be present to attempt a fit.
-    windowsize : int (200)
-        The square around a gripoint to consider objects
-    xrange : list
-        The x region on the chip to sample
-    yrange : list
-        The y region on the chip to sample
-    num_points : int (20)
-        The number of gridpoints to use in the x and y directions.
-    """
-    observed_kd = KDTree(np.array([x, y]).T)
-
-    catalog_u, catalog_v = wcs.all_world2pix(az, alt, 0)
-
-    # Let's set up a grid of x,y point where we want to sample.
-    xgridpts = np.linspace(np.min(xrange), np.max(xrange), num_points)
-    ygridpts = np.linspace(np.min(yrange), np.max(yrange), num_points)
-
-    xgridpts, ygridpts = np.meshgrid(xgridpts, ygridpts)
-    xoffs = xgridpts.ravel()*0.
-    yoffs = xgridpts.ravel()*0.
-    distances = xgridpts.ravel()*0.
-    npts = xgridpts.ravel()*0.
-    for i, (xp, yp) in enumerate(zip(xgridpts.ravel(), ygridpts.ravel())):
-        good = np.where((np.abs(catalog_u-xp) < windowsize/2.) & (np.abs(catalog_v-yp) < windowsize/2.))
-        if good[0].size < min_points:
-            xoffs[i] = 0
-            yoffs[i] = 0
-            npts[i] = good[0].size
-        else:
-            fun = dist_minimizer(catalog_u[good], catalog_v[good], observed_kd)
-            best_fit = minimize(fun, [0, 0])
-            if np.max(np.abs(best_fit.x)) > max_shift:
-                xoffs[i] = 0
-                yoffs[i] = 0
-                npts[i] = good[0].size
-            else:
-                xoffs[i] = best_fit.x[0]
-                yoffs[i] = best_fit.x[1]
-                distances[i] = best_fit.fun
-                npts[i] = good[0].size
-
-    return xgridpts, ygridpts, xoffs, yoffs, npts, distances
 
 
 class dist_mapper_minimizer(object):
