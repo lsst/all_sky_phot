@@ -1,10 +1,10 @@
 import numpy as np
-from scipy.interpolate import interp2d, RectBivariateSpline, LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree
 from scipy.optimize import minimize
-from scipy.stats import binned_statistic
+import sys
 
-__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper', 'load_fisheye']
+__all__ = ['Fisheye', 'fit_xyshifts', 'distortion_mapper', 'load_fisheye', 'distortion_mapper_looper']
 
 
 class Fisheye(object):
@@ -56,13 +56,23 @@ class Fisheye(object):
                  xshift=self.xshift, yshift=self.yshift)
 
     def all_world2pix(self, az, alt, ref):
-        """
+        """Convert az,alt to chip x,y
+
         Parameters:
         -----------
         alt : array
             Altitude of points (degrees)
         az : array
             Azimuth of points
+        ref : int
+            Reference pixel for the wcs object (0 is a good choice)
+
+        Returns
+        -------
+        x : float
+            chip position (pixels)
+        y : float
+            chip position (pixels)
         """
         u, v = self.wcs.all_world2pix(az, alt, ref)
         x = u + self.xinterp(u, v)
@@ -72,7 +82,8 @@ class Fisheye(object):
         pass
 
     def all_pix2world(self, x, y):
-        """
+        """Convert a chip x,y to altitude, azimuth
+
         Parameters
         ----------
         x : array
@@ -186,13 +197,37 @@ def fit_xyshifts(x, y, alt, az, wcs, max_shift=40., min_points=3, windowsize=200
 
 
 class dist_mapper_minimizer(object):
+    """Wrapper that makes it easy to solve for wcs shifts with standard scipy minimizers.
+    """
     def __init__(self, catalog_u, catalog_v, mjd, kdtree):
+        """
+        Parameters
+        ----------
+        catalog_u : array
+            Catalog positions that have been projected to the u,v plane
+        catalog_v : array
+            Catolog v positions
+        mjd : array
+            The MJD for each observed point
+        kdtree : scipy kdtree
+            A KD tree built from observed x,y,mjd points.
+        """
         self.u = catalog_u
         self.v = catalog_v
         self.mjd = mjd
         self.kdtree = kdtree
 
     def __call__(self, x0):
+        """
+        Parameters
+        ----------
+        x0 : 2-element array
+
+        Returns
+        -------
+        Median distance between catalog points and their nearest observed neighbor after
+        shifts have been applied.
+        """
         xshifts = x0[0]
         yshifts = x0[1]
 
@@ -202,13 +237,12 @@ class dist_mapper_minimizer(object):
         distances, indx = self.kdtree.query(np.array([final_x, final_y, self.mjd]).T)
 
         result = np.median(distances)
-        # print 'mean of medians', result
         return result
 
 
 def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
                       mjd_multiplier=1e4, u_center=2000, v_center=2000, window=100, pad=20):
-    """Try to find a set of distorions that do a good job matching the catalog alt, az positions to
+    """Try to find a set of distortions that do a good job matching the catalog alt, az positions to
     observed chip positions
     """
 
@@ -245,5 +279,59 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
     result.nobs = observed_mjd.size
 
     return result
+
+
+def distortion_mapper_looper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
+                             xmax=5796, ymax=3870, nx=20, ny=20, mjd_multiplier=1e4,
+                             window=100, pad=20, verbose=True):
+    """
+
+    """
+    xgrid = np.linspace(0, xmax, nx)
+    ygrid = np.linspace(0, ymax, ny)
+
+    xp = []
+    yp = []
+    xshifts = []
+    yshifts = []
+    distances = []
+    npts = []
+    i = 0
+    imax = float(xgrid.size*ygrid.size)
+    for u_center in xgrid.ravel():
+        for v_center in ygrid.ravel():
+            xp.append(u_center)
+            yp.append(v_center)
+            fit_result = distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt,
+                                           catalog_az, catalog_mjd, wcs, window=window,
+                                           u_center=u_center, v_center=v_center)
+            if fit_result is None:
+                xshifts.append(np.nan)
+                yshifts.append(np.nan)
+                distances.append(np.nan)
+                npts.append(np.nan)
+            else:
+                xshifts.append(fit_result.x[0])
+                yshifts.append(fit_result.x[1])
+                distances.append(fit_result.fun)
+                npts.append(fit_result.nobs)
+            if verbose:
+                i += 1
+                progress = i/imax*100
+                text = "\rprogress = %.2f%%" % progress
+                sys.stdout.write(text)
+                sys.stdout.flush()
+    yp = np.array(yp)
+    xp = np.array(xp)
+    xshifts = np.array(xshifts)
+    yshifts = np.array(yshifts)
+    distances = np.array(distances)
+    npts = np.array(npts)
+
+    result = {'yp': yp, 'xp': xp, 'xshifts': xshifts, 'yshifts': yshifts, 'distances': distances, 'npts': npts}
+
+    good = np.where(~(np.isnan(xshifts)) & ~(np.isnan(yshifts)))
+    wcs_w_shift = Fisheye(wcs, xp[good], yp[good], xshifts[good], yshifts[good])
+    return wcs_w_shift, result
 
 

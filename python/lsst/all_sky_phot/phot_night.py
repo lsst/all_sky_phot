@@ -11,17 +11,53 @@ __all__ = ['phot_night', 'default_phot_params']
 
 def default_phot_params():
     """Make some handy default photometry paramters
+
+    Parameters
+    ----------
+    background_size : int (50)
+        Used by photutils.Background2D. box_size used for background calc.
+    bk_clip_sigma : float (3)
+        Sigma clipping used by photutils.Background2D.
+    bkiter : int (10)
+        Number of iterations used in sigma clipping.
+    bk_filter_size : int (6)
+        Window size of the 2D median filter used on background image by photutils.Background2D.
+    dao_fwhm : float (3.)
+        FWHM used by photutils.DAOStarFinder.
+    dao_thresh : float (5.)
+        Number of standard deviation threshold used by photutils.DAOStarFinder.
+    appr_r : float (5.)
+        Radius used by photutils.CircularAperture.
+    ann_r_in : float (6.)
+        Inner radial radius used by photutils.CircularAnnulus.
+    ann_r_out : float(8.)
+        Outer radial radial used by photutils.CircularAnnulus.
+    stat_region : list ([2000, 3000, 2000, 3000])
+        Pixel coordinates defining the region on the background subtracted image where stats (e.g., std)
+        are computed.
     """
 
     phot_params = {'background_size': 50, 'bk_clip_sigma': 3, 'bk_iter': 10,
-                       'bk_filter_size': 6, 'dao_fwhm': 3.0, 'dao_thresh': 5.,
-                       'apper_r': 5., 'ann_r_in': 6., 'ann_r_out': 8.,
-                       'stat_region': [2000, 3000, 2000, 3000]}
+                   'bk_filter_size': 6, 'dao_fwhm': 3.0, 'dao_thresh': 5.,
+                   'apper_r': 5., 'ann_r_in': 6., 'ann_r_out': 8.,
+                   'stat_region': [2000, 3000, 2000, 3000]}
     return phot_params
 
 
 def phot_image(image, phot_params=None, clip_negative=True, verbose=False):
     """Run detection and photometry on a single image
+
+    Parameters
+    ----------
+    image : array
+        The image to perform photometry on
+    phot_params : dict (None)
+        Dictionary holding common photometry kwargs. Loads defaults from default_phot_params
+        if None.
+    clip_negative : bool (True)
+        Remove any sources that have negative flux.
+    verbose : bool (False)
+        Print out steps.
     """
     # Do background subtraction
     if verbose:
@@ -62,6 +98,7 @@ def phot_image(image, phot_params=None, clip_negative=True, verbose=False):
     if clip_negative:
         good = np.where(phot_table['residual_aperture_sum'] > 0)
         phot_table = phot_table[good]
+
     return phot_table
 
 
@@ -72,10 +109,10 @@ def phot_night(files, phot_params=None, savefile='phot_night.npz', clip_negative
     Parameters
     ----------
     files : list of str
-        Filenames of cr2 iamges to read
+        Filenames of cr2 images to read
     phot_params : dict (None)
-        The parameters for the photometry (apperture size, detection threshold, etc)
-        XXX-should document them all here
+        Dictionary holding common photometry kwargs. Loads defaults from default_phot_params
+        if None.
     savefile : str ('phot_night.npz')
         The numpy npz file to save the resulting photometry tables to.
     clip_negative : bool (True)

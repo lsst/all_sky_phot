@@ -1,11 +1,10 @@
 import numpy as np
 from astropy.wcs import Sip
 from astropy import wcs
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, ICRS
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 import astropy.units as u
 from astropy.time import Time
 
-# Let's make a new attempt to fit things, this time using the WCS object.
 __all__ = ['wcs_azp', 'wcs_zea', 'wcs_refine', 'wcs_refine_zea']
 
 

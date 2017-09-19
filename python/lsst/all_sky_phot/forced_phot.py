@@ -3,7 +3,6 @@ import healpy as hp
 import photutils as phu
 from scipy.stats import binned_statistic
 from lsst.all_sky_phot.phot_night import default_phot_params
-from astropy.stats import sigma_clipped_stats
 
 
 __all__ = ['forced_phot']
@@ -17,9 +16,9 @@ def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id
     Parameters
     ----------
     image : array
-        The image to find the exticntion map from
+        The image to find the extinction map from
     wcs : wcs-like object
-        WCS describing the image
+        WCS describing the image. Note WCS RA,Dec will be interpreted as Az,Alt.
     zp : float
         The zeropoint of the image
     catalog_alt : array
@@ -30,6 +29,9 @@ def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id
         Magnitudes of stars expected in the image
     nside : int
         Healpixel nside to set resoltion of output map
+    phot_params : dict (None)
+        Dictionary holding common photometry kwargs. Loads defaults from default_phot_params
+        if None.
     do_background : bool (False)
         Do a 2D background model subtraction. Skipped by default because astropy is really slow.
     return_table : bool (False)
@@ -39,7 +41,7 @@ def forced_phot(image, wcs, zp, catalog_alt, catalog_az, catalog_mag, catalog_id
     ------
     extinction : array
         A healpixel array (where latitude and longitude are altitude and azimuth). Pixels
-        with no stars are filled with the healpixel mask value. Non-masked pixesl have the
+        with no stars are filled with the healpixel mask value. Non-masked pixels have the
         measured extinction in magnitudes.
     """
 
