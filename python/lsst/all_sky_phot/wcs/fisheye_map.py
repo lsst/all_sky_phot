@@ -220,8 +220,41 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
 def distortion_mapper_looper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
                              xmax=5796, ymax=3870, nx=20, ny=20, mjd_multiplier=1e4,
                              window=100, pad=20, verbose=True):
-    """
+    """Given observed and expected stellar catalogs and a rough WCS, fit an additional distortion map.
 
+    Parameters
+    ----------
+    observed_x : array
+        The observed x-positions of stars
+    observed_y : array
+        The observed y-position of stars
+    observed_mjd : array
+        The MJD for each observation (so multiple frames can be fit simultaneously)
+    catalog_alt : array
+        Altitudes of stars expected to be in the frame(s) (degrees)
+    catalog_az : array
+        Azimuths of stars expected to be in the frame(s) (degrees)
+    catalog_mjd : array
+        The MJDs for the catalogs
+    wcs : wcs object
+        A rough WCS that transforms catalog alt,az to chip x,y
+    xmax : int (5796)
+        The maximum x-position to try and fit on the chip
+    ymax : int (3870)
+        The maximum y-position to try and fit
+    nx : int (20)
+        The number of gridpoints to use in the x-dimension
+    ny : int (20)
+        The number of gridpoints to use in the y-dimension
+    mjd_multiplier : float (1e4)
+        MJD values are multiplied by this to make KD-tree generation. Should be order-of-magnitude
+        larger than xmax and ymax.
+    window : int (100)
+        The window size to select around each gridpoint (pixels).
+    pad : int (20)
+        Pad on the window in case stars we want fall outside (pixels)
+    verbose : bool (True)
+        Print out a progress bar
     """
     xgrid = np.linspace(0, xmax, nx)
     ygrid = np.linspace(0, ymax, ny)
@@ -264,7 +297,8 @@ def distortion_mapper_looper(observed_x, observed_y, observed_mjd, catalog_alt, 
     distances = np.array(distances)
     npts = np.array(npts)
 
-    result = {'yp': yp, 'xp': xp, 'xshifts': xshifts, 'yshifts': yshifts, 'distances': distances, 'npts': npts}
+    result = {'yp': yp, 'xp': xp, 'xshifts': xshifts, 'yshifts': yshifts,
+              'distances': distances, 'npts': npts}
 
     good = np.where(~(np.isnan(xshifts)) & ~(np.isnan(yshifts)))
     wcs_w_shift = Fisheye(wcs, xp[good], yp[good], xshifts[good], yshifts[good])
