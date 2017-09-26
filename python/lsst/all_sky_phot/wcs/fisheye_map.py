@@ -81,15 +81,17 @@ class Fisheye(object):
 
         pass
 
-    def all_pix2world(self, x, y):
+    def all_pix2world(self, x, y, ref):
         """Convert a chip x,y to altitude, azimuth
 
         Parameters
         ----------
         x : array
-           x pixel corrdinate
+            x pixel corrdinate
         y : array
-           y pixel coordinate
+            y pixel coordinate
+        ref : int
+            Reference pixel for the wcs object (0 is a good choice)
 
         Returns
         -------
@@ -100,7 +102,7 @@ class Fisheye(object):
         """
         u = x + self.reverse_xinterp(x, y)
         v = y + self.reverse_yinterp(x, y)
-        az, alt = self.wcs.all_pix2world(u, v, 0)
+        az, alt = self.wcs.all_pix2world(u, v, ref)
 
         return alt, az
 
