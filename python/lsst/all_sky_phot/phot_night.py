@@ -1,8 +1,8 @@
 from __future__ import print_function
 import numpy as np
 from lsst.all_sky_phot import readcr2
-from photutils import Background2D, SigmaClip, MedianBackground, DAOStarFinder, CircularAperture, aperture_photometry, CircularAnnulus
-from astropy.stats import sigma_clipped_stats
+from photutils import Background2D, MedianBackground, DAOStarFinder, CircularAperture, aperture_photometry, CircularAnnulus
+from astropy.stats import sigma_clipped_stats, SigmaClip
 import sys
 
 
