@@ -6,7 +6,7 @@ from astropy.stats import sigma_clipped_stats, SigmaClip
 import sys
 
 
-__all__ = ['phot_night', 'default_phot_params']
+__all__ = ['phot_night', 'default_phot_params', 'phot_image']
 
 
 def default_phot_params():
