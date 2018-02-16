@@ -9,20 +9,40 @@ __all__ = ['wcs_azp', 'wcs_zea', 'wcs_refine', 'wcs_refine_zea']
 
 
 class wcs_azp(object):
+    """
+    Helper class so WCS parameters can be varied to find the best fit.
+
+    The class includes methods for mapping a vector to WCS parameters and back. Thus,
+    things like scipy minimize can be used to vary the WCS values to find the best fit.
+    """
 
     def __init__(self, x, y, alt, az, a_order=2, b_order=2, crpix1=0, crpix2=0, nparams=10):
         """
         Parameters
         ----------
         x : array (float)
-            x-positions on the chip
+            x-positions on the chip. x,y, alt, and az should all be the same length.
         y : array (float)
             y positions on the chip
         alt : array (float)
             Altitudes of the stars (degrees)
         az : array (float)
             Azimuths of the stars (degrees)
+        a_order : int (2)
+            Order of the SIP distortion in one dimension
+        b_order : int (2)
+            Order of the SIP distortion in the other dimension
+        crpix1 : float (0.)
+            The WCS crpix1
+        crpix2 : float (0.)
+            The WCS crpix2
+        nparams : int (10)
+            The number of free parameters in the WCS
+
         """
+        # Check that we have the stars matched already
+        if len(np.unique([len(x), len(y), len(alt), len(az)])) > 1:
+            raise ValueError('x, y, alt, az must all have the same length.')
 
         self.az = az
         self.alt = alt
@@ -45,7 +65,7 @@ class wcs_azp(object):
         n_a = int((a_order + 1.)**2)
         n_b = int((b_order + 1)**2)
 
-        self.a_ind = np.arange(n_a) + 10
+        self.a_ind = np.arange(n_a) + nparams
         self.b_ind = np.arange(n_b) + self.a_ind.max() + 1
 
         self.sip_zeros_a = np.zeros((a_order+1, a_order + 1))
@@ -54,6 +74,8 @@ class wcs_azp(object):
 
     def set_wcs(self, x0):
         """
+        Values in a single vector x0 are mapped to WCS parameters.
+
         x0 = [0:crpix1, 1:crpix2, 2:cdelt1, 3:cdelt2, 4:pc, 5:pc, 6:pc, 7:pc, 8:mu, 9:gamma, sip... ]
         """
         # Referece Pixel
@@ -98,12 +120,21 @@ class wcs_azp(object):
         return x0
 
     def return_wcs(self, x0):
+        """
+        """
         self.set_wcs(x0)
         return self.w
 
     def __call__(self, x0):
         """
-        
+        Parameters
+        ----------
+        x0 : numpy array
+            WCS parameters unrolled into a vector
+
+        Returns
+        -------
+        The squared-sum distances between the observed and expected positions.
         """
         self.set_wcs(x0)
         # XXX, az alt, or alt az?
@@ -165,14 +196,24 @@ class wcs_zea(wcs_azp):
 
 def mag2quasi_dist(mag):
     """Assume all stars have absolute mag of 10.
+
+    Parameters
+    ----------
+    mag : float or np.array
+
+    Returns
+    -------
+    dist : float
+        Distance to star in parsecs
     """
+    # Distance modulus
     mu = mag - 10.
     dist = 10.**(mu/5.+1)
     return dist
 
 
 class wcs_refine(wcs_azp):
-    """Take a catalog of alt,az positions of known stars and minimize the d3 distance
+    """Take a catalog of alt,az positions of known stars and minimize the d2 or d3 distance
     """
     def __init__(self, x, y, xy_mag, xy_mjd, ra, dec, rd_mag, location=None,
                  a_order=0, b_order=0, crpix1=0, crpix2=0, alt_limit=15.,
