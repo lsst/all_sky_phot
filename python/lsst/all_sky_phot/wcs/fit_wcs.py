@@ -307,7 +307,7 @@ class wcs_refine_zea(wcs_zea):
     """
     def __init__(self, x, y, xy_mag, xy_mjd, ra, dec, rd_mag, location=None,
                  a_order=0, b_order=0, crpix1=0, crpix2=0, alt_limit=15.,
-                 what_min='d2'):
+                 what_min='d2', min_func=np.sum):
         """
         Parameters
         ----------
@@ -328,6 +328,8 @@ class wcs_refine_zea(wcs_zea):
         what_min : 'd2' or 'd3'
             Should it return the d2 (angular) distances or the d3 (spatial) distances
             (assuming all stars have absolute magnitude of 10)
+        min_func : function to minimize
+            Good options would be np.sum, np.median, np.mean.
         """
 
         self.alt_limit = alt_limit
@@ -340,6 +342,7 @@ class wcs_refine_zea(wcs_zea):
         else:
             self.location = location
 
+        self.min_func = min_func
         self.x = x
         self.y = y
         self.dist = mag2quasi_dist(xy_mag)*u.pc
@@ -386,7 +389,7 @@ class wcs_refine_zea(wcs_zea):
     def __call__(self, x0):
         indx, d2, d3 = self.find_distances(x0)
         if self.what_min == 'd2':
-            result = np.sum(d2)
+            result = self.min_func(d2)
         elif self.what_min == 'd3':
-            result = np.sum(d3)
+            result = self.min_func(d3)
         return result
