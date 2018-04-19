@@ -104,7 +104,7 @@ class Fisheye(object):
         v = y + self.reverse_yinterp(x, y)
         az, alt = self.wcs.all_pix2world(u, v, ref)
 
-        return alt, az
+        return az, alt
 
 
 def load_fisheye(filename):
