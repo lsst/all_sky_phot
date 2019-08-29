@@ -3,6 +3,7 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree
 from scipy.optimize import minimize
 import sys
+import matplotlib.pylab as plt
 
 __all__ = ['Fisheye', 'distortion_mapper', 'load_fisheye', 'distortion_mapper_looper']
 
@@ -179,7 +180,7 @@ class dist_mapper_minimizer(object):
 
 
 def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
-                      mjd_multiplier=1e4, u_center=2000, v_center=2000, window=100, pad=20):
+                      mjd_multiplier=1e4, u_center=2000, v_center=2000, window=100, pad=20, diaog=False):
     """Try to find a set of distortions that do a good job matching the catalog alt, az positions to
     observed chip positions
     """
@@ -216,7 +217,17 @@ def distortion_mapper(observed_x, observed_y, observed_mjd, catalog_alt, catalog
     result.ncat = catalog_mjd.size
     result.nobs = observed_mjd.size
 
-    return result
+
+    #if (u_center > 2200) & (u_center < 2300) & (v_center > 500) & (v_center < 600) & (np.abs(result.x[0]) > 10) & (np.abs(result.x[1]) > 10):
+    #import pdb ; pdb.set_trace()
+
+    if diaog:
+        fig, ax = plt.subplots()
+        ax.plot(catalog_u+result.x[0], catalog_v+result.x[1], 'go', alpha=.5)
+        ax.plot(observed_x, observed_y, 'ro', alpha=.5)
+        return result, ax
+    else:
+        return result
 
 
 def distortion_mapper_looper(observed_x, observed_y, observed_mjd, catalog_alt, catalog_az, catalog_mjd, wcs,
